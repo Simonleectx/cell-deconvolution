@@ -329,13 +329,14 @@ class Deconvolution:
             benchmark_list = []
             for x, cell in enumerate(cells):
                 if statistic == "pearson":
-                    val = stat.correlation(predicted_values[cell], true_values[cell])
+                    val = stat.correlation(predicted_values[cell], true_values[cell]) - true_values[cell].min() / (true_values[cell].max() - true_values[cell].min())
                 elif statistic == "r2":
-                    val = stat.R_squared(predicted_values[cell], true_values[cell])
+                    val = stat.R_squared(predicted_values[cell], true_values[cell]) - true_values[cell].min() / (true_values[cell].max() - true_values[cell].min())
                 elif statistic == "residual":
                     val =  true_values[cell] - predicted_values[cell]
+                    val = abs(true_values[cell] - true_values[cell] - true_values[cell].min() / (true_values[cell].max() - true_values[cell].min()) )
                 elif statistic == "rmse":
-                    val = stat.rmse(predicted_values[cell], true_values[cell])
+                    val = stat.rmse(predicted_values[cell], true_values[cell]) - true_values[cell].min() / (true_values[cell].max() - true_values[cell].min())
                 else:
                     return "invalid prompt"
                 if statistic == "residual":
@@ -377,7 +378,7 @@ class Deconvolution:
         sns.scatterplot(data=df_final['cellanneal'], legend=False)
         plt.xlabel("Cell Types")
         plt.ylabel(statistic)
-        plt.title("{} across different Methods at Cell type level".format(statistic))
+        plt.title("Normalized {} across different Methods at Cell type level".format(statistic))
         plt.xticks(rotation = 90)
         plt.legend()
         plt.show()

@@ -61,7 +61,7 @@ class Plot():
         else:
             df = df
         df.plot(kind='bar', stacked=True)
-        plt.title("Cell Deconvolutions")
+        plt.title("Bulk Deconvolutions")
         plt.xlabel("Bulk Sample ID")
         plt.ylabel("Cell type Proportions (%)")
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
@@ -107,7 +107,7 @@ class Plot():
         bottom, top = ax.get_ylim()
         ax.set_ylim(bottom + 0.5, top - 0.5)
         ax.invert_yaxis()
-        plt.title("Cell Deconvolutions")
+        plt.title("Bulk Deconvolutions")
         plt.xlabel("Bulk Sample ID")
         plt.ylabel("Cell types")
         #plt.savefig('', bbox_inches='tight')
@@ -203,7 +203,7 @@ class Plot():
         if ax is None:
             fig, ax = plt.subplots(figsize=figsize)
         ind_points = true_values.dropna().index.intersection(predicted_values.dropna().index)
-        ax.grid(b=False)
+        ax.grid(False)
         predicted_values = predicted_values.loc[ind_points].astype(float)
         true_values = true_values.loc[ind_points].astype(float)
         if corr_title:
@@ -446,7 +446,7 @@ class Plot():
 
 
         ind_points = true_values.dropna().index.intersection(predicted_values.dropna().index)
-        ax.grid(b=False)
+        ax.grid(False)
         predicted_values = predicted_values.loc[ind_points].astype(float)
         true_values = true_values.loc[ind_points].astype(float)
 
@@ -454,7 +454,7 @@ class Plot():
 
         df = pd.merge(predicted_values, true_values, left_index=True, right_index=True)
         indices = df.columns
-        df['diff'] = df[indices[0]] - df[indices[1]]
+        df['diff'] = df[indices[0]] - df[indices[1]] - df[indices[1]].min() / df[indices[1]].max() - df[indices[1]].min()
         df['avg'] = (df[indices[0]] + df[indices[1]])/2
 
         title = 'Bland Altman of ' + title + ': {' + str(round(df['diff'].mean(),3)) + ' +/- ' + str(round(df['diff'].std(),3)) + '}'
@@ -915,42 +915,92 @@ class Plot():
         plt.ylabel("Pearson Correlation (r)")
         plt.title("Pearson Correlation across different Methods at Cell type level")
 
-def boxlplot(df1,df2,title,type):
-    patch_artist=True
-    datasets = [df1.T,df2.T]
+    def boxlplot(self,df1,df2,title,type):
+        patch_artist=True
+        datasets = [df1.T,df2.T]
 
-    colours = ['red','blue']
+        colours = ['red','blue']
 
-    groups = ['Cellanneal', 'SVR']
+        groups = ['Cellanneal', 'SVR']
 
-    x_pos_range = np.arange(len(datasets)) / (len(datasets) - 1)
-    x_pos = (x_pos_range * 0.5) + 0.75
+        x_pos_range = np.arange(len(datasets)) / (len(datasets) - 1)
+        x_pos = (x_pos_range * 0.5) + 0.75
 
-    for i, data in enumerate(datasets):
-        bp = plt.boxplot(
-            np.array(data), sym='', whis=[0, 100], widths=0.6 / len(datasets),
-            labels=list(datasets[0]), patch_artist=True,
-            positions=[x_pos[i] + j * 1 for j in range(len(data.T))]
-        )
-        # Fill the boxes with colours (requires patch_artist=True)
-        k = i % len(colours)
-        for box in bp['boxes']:
-            box.set(facecolor=colours[k])
-        for element in ['boxes', 'fliers', 'means', 'medians']:
-            plt.setp(bp[element], color=colours[k])
-        for element in ['whiskers', 'caps']:
-            plt.setp(bp[element], color=colours[k])
-            plt.setp(bp[element], color=colours[k])
-    # Legend
-    legend_elements = []
-    for i in range(len(datasets)):
-        j = i % len(groups)
-        k = i % len(colours)
-        legend_elements.append(Patch(facecolor=colours[k], label=groups[j]))
-    plt.legend(handles=legend_elements, fontsize=8)
-    plt.xticks(((np.arange(len(list(datasets[0]))) + 1)),rotation=90)
-    plt.title(title)
-    plt.ylabel(type)
-    plt.xlabel("Cell Types")
-    plt.show()
+        for i, data in enumerate(datasets):
+            bp = plt.boxplot(
+                np.array(data), sym='', whis=[0, 100], widths=0.6 / len(datasets),
+                labels=list(datasets[0]), patch_artist=True,
+                positions=[x_pos[i] + j * 1 for j in range(len(data.T))]
+            )
+            # Fill the boxes with colours (requires patch_artist=True)
+            k = i % len(colours)
+            for box in bp['boxes']:
+                box.set(facecolor=colours[k])
+            for element in ['boxes', 'fliers', 'means', 'medians']:
+                plt.setp(bp[element], color=colours[k])
+            for element in ['whiskers', 'caps']:
+                plt.setp(bp[element], color=colours[k])
+                plt.setp(bp[element], color=colours[k])
+        # Legend
+        legend_elements = []
+        for i in range(len(datasets)):
+            j = i % len(groups)
+            k = i % len(colours)
+            legend_elements.append(Patch(facecolor=colours[k], label=groups[j]))
+        plt.legend(handles=legend_elements, fontsize=8)
+        plt.xticks(((np.arange(len(list(datasets[0]))) + 1)),rotation=90)
+        plt.title(title)
+        plt.ylabel(type)
+        plt.xlabel("Cell Types")
+        plt.show()
+
+    def nrmse(self, cellanneal, svr, true, dataset="ATAP" ):
+        from sklearn.metrics import mean_squared_error
+        import numpy as np
+        from matplotlib.patches import Patch
+
+        atap_cellanneal_df = pd.DataFrame()
+        atap_svr_df = pd.DataFrame()
+
+        for cell in cellanneal.columns:
+                try:
+                    #atap_cellanneal_df[cell] = lmu_true[cell] - cellanneal_lmu[cell]
+                    atap_cellanneal_df[cell] = [mean_squared_error(true[cell][:(i+1)], cellanneal[cell][:(i+1)], squared=False) - true[cell].min() / (true[cell].max() - true[cell].min()) for i in range(true.shape[0])]
+                except KeyError:
+                    continue
+            
+        for cell in svr.columns:
+                try:
+                    #atap_svr_df[cell] = lmu_true[cell] - svr_lmu[cell]
+                    atap_svr_df[cell] = [mean_squared_error(true[cell][:(i+1)], svr[cell][:(i+1)], squared=False) - true[cell].min() / (true[cell].max() - true[cell].min()) for i in range(true.shape[0])]
+                except KeyError:
+                    continue
+
+        atap_cellanneal_df = atap_cellanneal_df.T
+        atap_svr_df = atap_svr_df.T
+        atap_svr_df = atap_svr_df.dropna()
+        atap_cellanneal_df = atap_cellanneal_df.dropna()
+        self.boxlplot(atap_cellanneal_df, atap_svr_df, "Normalized RMSE Boxplot for "+dataset+" Dataset", "NRMSE")
+
+    def nresidual(self, cellanneal, svr, true, dataset="ATAP"):
+        atap_cellanneal_df = pd.DataFrame()
+        atap_svr_df = pd.DataFrame()
+
+        for cell in cellanneal.columns:
+                try:
+                    atap_cellanneal_df[cell] = abs(true[cell] - cellanneal[cell] - true[cell].min() / (true[cell].max() - true[cell].min()))
+                except KeyError:
+                    continue
+            
+        for cell in svr.columns:
+                try:
+                    atap_svr_df[cell] = abs(true[cell] - svr[cell] - true[cell].min() / (true[cell].max() - true[cell].min()))
+                except KeyError:
+                    continue
+
+        atap_cellanneal_df = atap_cellanneal_df.T
+        atap_svr_df = atap_svr_df.T
+        atap_svr_df = atap_svr_df.dropna()
+        atap_cellanneal_df = atap_cellanneal_df.dropna()
+        self.boxlplot(atap_cellanneal_df, atap_svr_df, "Normalized Residual Boxplot for ATAP Dataset", "Normalized Residual")
     
